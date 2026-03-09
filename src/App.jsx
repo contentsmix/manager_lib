@@ -1323,7 +1323,7 @@ export default function App() {
       });
 
       // 발급받으신 제미나이 API 키를 여기에 넣어주세요!
-      const apiKey = "여기에_발급받은_GEMINI_API_키를_넣으세요";
+      const apiKey = "AIzaSyC7qafR1GhlKt_aA5IKhZpZH-p6OK2bNek";
       const response = await fetch(
         `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:generateContent?key=${apiKey}`,
         {
