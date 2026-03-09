@@ -304,7 +304,7 @@ const LoginScreen = ({ onLogin }) => {
                 />
               </div>
               <div className="text-xs text-slate-400 text-center bg-slate-50 p-2 rounded">
-                (초기 ID: PKPK / PW: 1111)
+               
               </div>
             </>
           ) : (
@@ -1194,7 +1194,7 @@ export default function App() {
         // In a real app, you'd create Firebase Auth user first
         const newUser = {
           uid: `student_${Date.now()}`,
-          email,
+          
           name,
           password,
           role: USER_ROLES.STUDENT,
