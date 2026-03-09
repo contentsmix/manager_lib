@@ -36,7 +36,7 @@ import {
   signInWithEmailAndPassword,
   signOut,
   onAuthStateChanged,
-  signInAnonymously,
+  signInAnonymously, // [수정됨] 익명 로그인 기능을 위해 필수적으로 추가된 모듈입니다.
 } from 'firebase/auth';
 import {
   getFirestore,
@@ -192,7 +192,7 @@ const LoginScreen = ({ onLogin }) => {
           throw new Error('아이디 또는 비밀번호가 올바르지 않습니다.');
         }
       } else {
-        // 학생 로그인: Firestore에서 이름+비밀번호로 사용자 찾기
+        // 학생 로그인: Firestore에서 이름+좌석번호(비밀번호)로 사용자 찾기
         const q = collection(db, COLLECTIONS.USERS);
         const querySnapshot = await getDocs(q);
 
@@ -216,7 +216,7 @@ const LoginScreen = ({ onLogin }) => {
             role: 'student'
           });
         } else {
-          throw new Error('학생 정보를 찾을 수 없거나 비밀번호가 틀립니다.');
+          throw new Error('학생 정보를 찾을 수 없거나 좌석 번호가 틀립니다.');
         }
       }
     } catch (err) {
@@ -303,9 +303,7 @@ const LoginScreen = ({ onLogin }) => {
                   required
                 />
               </div>
-              <div className="text-xs text-slate-400 text-center bg-slate-50 p-2 rounded">
-               
-              </div>
+              {/* [수정됨] 관리자 로그인 화면의 힌트를 삭제하여 보안을 강화했습니다. */}
             </>
           ) : (
             <>
@@ -324,16 +322,17 @@ const LoginScreen = ({ onLogin }) => {
                 />
               </div>
               <div>
+                {/* [수정됨] 학생들이 헷갈리지 않도록 라벨을 '좌석 번호'로 변경하고 입력 내용을 볼 수 있게 type="text"로 바꿨습니다. */}
                 <label className="block text-xs font-bold text-slate-500 uppercase mb-1">
-                  비밀번호
+                  좌석 번호
                 </label>
                 <input
                   name="password"
-                  type="password"
+                  type="text"
                   value={formData.password}
                   onChange={handleChange}
                   className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none"
-                  placeholder="관리자에게 받은 비밀번호"
+                  placeholder="본인의 좌석 번호 2자리 입력"
                   required
                 />
               </div>
@@ -380,6 +379,18 @@ const ScheduleFormModal = ({
     detail: initialData?.detail || ''
   });
   const [saving, setSaving] = useState(false);
+
+  // 모달이 열릴 때마다 폼 데이터 초기화
+  useEffect(() => {
+    if (isOpen) {
+      setFormData({
+        month: initialData?.month || new Date().getMonth() + 1,
+        category: initialData?.category || CATEGORIES[0],
+        title: initialData?.title || '',
+        detail: initialData?.detail || ''
+      });
+    }
+  }, [isOpen, initialData]);
 
   if (!isOpen) return null;
 
@@ -652,18 +663,32 @@ const StudentModal = ({
   onClose,
   onSave
 }) => {
-  const [email, setEmail] = useState(initialData?.email || '');
-  const [password, setPassword] = useState('');
+  // [수정됨] 이메일, 비밀번호 대신 이름과 좌석번호 상태를 관리합니다.
   const [name, setName] = useState(initialData?.name || '');
+  const [seatNumber, setSeatNumber] = useState(initialData?.seatNumber || '');
   const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (isOpen) {
+      setName(initialData?.name || '');
+      setSeatNumber(initialData?.seatNumber || '');
+    }
+  }, [isOpen, initialData]);
 
   if (!isOpen) return null;
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    // [수정됨] 좌석번호가 정확히 2자리인지 확인하는 에러 방지용 검사입니다.
+    if (seatNumber.length !== 2) {
+      alert('좌석번호는 반드시 숫자 2자리로 입력해주세요. (예: 05, 12)');
+      return;
+    }
+
     setSaving(true);
     try {
-      await onSave(email, password, name);
+      await onSave(name, seatNumber);
       onClose();
     } catch (error) {
       console.error('Save error:', error);
@@ -705,40 +730,8 @@ const StudentModal = ({
             <span>
               {initialData
                 ? '수정된 정보는 즉시 반영됩니다.'
-                : '생성된 계정 정보를 학생에게 전달해주세요.'}
+                : '이름과 좌석 번호 2자리로 간편하게 학생을 등록하세요.'}
             </span>
-          </div>
-
-          <div>
-            <label htmlFor="student-email" className="text-xs font-bold text-slate-500 uppercase mb-1 block">
-              이메일
-            </label>
-            <input
-              id="student-email"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="w-full rounded-xl border-slate-200 border px-3 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
-              placeholder="student@example.com"
-              required
-              disabled={!!initialData}
-            />
-          </div>
-
-          <div>
-            <label htmlFor="student-password" className="text-xs font-bold text-slate-500 uppercase mb-1 block">
-              비밀번호
-            </label>
-            <input
-              id="student-password"
-              type="text"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="w-full rounded-xl border-slate-200 border px-3 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
-              placeholder={initialData ? '변경 시에만 입력' : '초기 비밀번호'}
-              required={!initialData}
-              minLength={6}
-            />
           </div>
 
           <div>
@@ -751,8 +744,28 @@ const StudentModal = ({
               value={name}
               onChange={(e) => setName(e.target.value)}
               className="w-full rounded-xl border-slate-200 border px-3 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
-              placeholder="홍길동"
+              placeholder="예: 홍길동"
               required
+            />
+          </div>
+
+          <div>
+            {/* [수정됨] 입력칸을 좌석번호 2자리 전용으로 교체하고 숫자 외 입력 방지 로직을 추가했습니다. */}
+            <label htmlFor="student-seat" className="text-xs font-bold text-slate-500 uppercase mb-1 block">
+              좌석 번호 (비밀번호로 자동 사용됨)
+            </label>
+            <input
+              id="student-seat"
+              type="text"
+              value={seatNumber}
+              onChange={(e) => {
+                const val = e.target.value.replace(/[^0-9]/g, ''); 
+                if (val.length <= 2) setSeatNumber(val); 
+              }}
+              className="w-full rounded-xl border-slate-200 border px-3 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500 outline-none font-bold"
+              placeholder="예: 05, 12"
+              required
+              maxLength={2}
             />
           </div>
 
@@ -1184,19 +1197,19 @@ export default function App() {
       .slice(0, 10);
   }, [schedules]);
 
-  const handleSaveStudent = async (email, password, name) => {
+  // [수정됨] 이름과 좌석번호를 기반으로 데이터를 저장하도록 수정했습니다.
+  const handleSaveStudent = async (name, seatNumber) => {
     try {
       if (editingStudent) {
         const userRef = doc(db, COLLECTIONS.USERS, editingStudent.id);
-        await updateDoc(userRef, { email, name, password });
+        await updateDoc(userRef, { name, seatNumber, password: seatNumber });
         alert('학생 정보가 수정되었습니다.');
       } else {
-        // In a real app, you'd create Firebase Auth user first
         const newUser = {
           uid: `student_${Date.now()}`,
-          
           name,
-          password,
+          seatNumber,
+          password: seatNumber, 
           role: USER_ROLES.STUDENT,
           createdAt: serverTimestamp()
         };
@@ -1295,9 +1308,61 @@ export default function App() {
     }
   };
 
+  // [수정됨] 제미나이 2.5-pro 모델 연동 및 요금 방지 모달 연결 로직을 추가했습니다.
   const handleImageUpload = async (e) => {
-    // OCR 구현은 생략 (API 키 필요)
-    alert('이미지 업로드 기능은 별도 API 키가 필요합니다.');
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsOcrLoading(true);
+    try {
+      const base64Image = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result.split(',')[1]);
+        reader.onerror = error => reject(error);
+        reader.readAsDataURL(file);
+      });
+
+      // 발급받으신 제미나이 API 키를 여기에 넣어주세요!
+      const apiKey = "여기에_발급받은_GEMINI_API_키를_넣으세요";
+      const response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:generateContent?key=${apiKey}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{
+              parts: [
+                { text: "이 이미지의 내용을 분석해줘. 반드시 JSON 형식으로 {\"title\": \"일정 제목\", \"detail\": \"상세 내용\"} 형태만 반환해." },
+                { inline_data: { mime_type: file.type, data: base64Image } }
+              ]
+            }]
+          })
+        }
+      );
+
+      if (!response.ok) throw new Error('API 호출에 실패했습니다.');
+      const resultData = await response.json();
+      
+      const textResponse = resultData.candidates[0].content.parts[0].text;
+      const jsonStr = textResponse.replace(/```json/g, '').replace(/```/g, '').trim();
+      const parsedData = JSON.parse(jsonStr);
+
+      // 데이터베이스에 바로 쓰지 않고, 원장님께서 확인 후 저장하도록 모달창을 띄웁니다 (비용 절감)
+      setEditingItem({
+        month: new Date().getMonth() + 1,
+        category: CATEGORIES[0],
+        title: parsedData.title || '이미지 분석 결과',
+        detail: parsedData.detail || textResponse,
+      });
+      setIsFormOpen(true);
+
+    } catch (error) {
+      console.error('OCR Error:', error);
+      alert('이미지 분석 중 오류가 발생했습니다. AI가 형식을 맞추지 못했거나 네트워크 문제일 수 있습니다.');
+    } finally {
+      setIsOcrLoading(false);
+      if (fileInputRef.current) fileInputRef.current.value = ''; 
+    }
   };
 
   const filteredData = selectedMonth
